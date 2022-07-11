@@ -1,0 +1,222 @@
+---
+title: "Dimension reduction</br>PCA on medical dataset"
+author: "Szymon Socha"
+output: 
+  html_document:
+    keep_md: true
+    toc: true
+    theme: journal
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(rgl.useNULL = TRUE) # Suppress the separate window.
+library(rgl)
+```
+# **Introduction**
+<div style="text-align: justify">
+In this paper I will perform dimension reduction using Principal component analysis (PCA).</br></br>
+The PCA will be conducted on publically available **[dataset](https://www.kaggle.com/dileep070/heart-disease-prediction-using-logistic-regression)** that could be find on the Kaggle website. The data comes from an ongoing cardiovascular study on residents of the town of Framingham, Massachusetts. The classification goal is to predict whether the patient has 10-year risk of future coronary heart disease (CHD).The dataset provides the patients’ information. It includes over 4,000 records and 15 attributes. Each attribute is a potential risk factor. There are both demographic, behavioral and medical risk factors.</br>
+Variables:
+<ul>
+  <li>Demographic:</li>
+    <ul>
+      <li>Sex: male or female (Nominal)</li>
+      <li>Age: Age of the patient; (Continuous - Although the recorded ages have been truncated to whole numbers, the concept of age is continuous)</li>
+    </ul>
+  <li>Behavioral</li>
+    <ul>
+      <li>Current Smoker: whether or not the patient is a current smoker (Nominal)</li>
+      <li>Cigs Per Day: the number of cigarettes that the person smoked on average in one day (can be considered continuous as one can have any number of cigarettes, even half a cigarette)</li>
+    </ul>
+  <li>Medical (history)</li>
+    <ul>
+      <li>BP Meds: whether or not the patient was on blood pressure medication (Nominal)</li>
+      <li>Prevalent Stroke: whether or not the patient had previously had a stroke (Nominal)</li>
+      <li>Prevalent Hyp: whether or not the patient was hypertensive (Nominal)</li>
+      <li>Diabetes: whether or not the patient had diabetes (Nominal)</li>
+    </ul>
+<li>Medical (current)</li>
+  <ul>
+    <li>Tot Chol: total cholesterol level (Continuous)</li>
+    <li>Sys BP: systolic blood pressure (Continuous)</li>
+    <li>Dia BP: diastolic blood pressure (Continuous)</li>
+    <li>BMI: Body Mass Index (Continuous)</li>
+    <li>Heart Rate: heart rate (Continuous - In medical research, variables such as heart rate though in fact discrete, yet are considered continuous because of large number of possible values.)</li>
+    <li>Glucose: glucose level (Continuous)</li>
+  </ul>
+<li>Predict variable (desired target)</li>
+  <ul>
+    <li>10 year risk of coronary heart disease CHD (binary: “1”, means “Yes”, “0” means “No”)</li>
+  </ul>
+</ul>
+</div>
+
+# **Data Preparation**
+<div style="text-align: justify">
+Since PCA is designed for continuous variables I will omit nominal variables and keep only the continuous ones. Moreover, I will remove *target* variable.</br>
+Let's take a look at some basic descriptive statistics and dimension of the dataset.
+</div>
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+library(dplyr)
+
+cardio<-read.csv2("oldml.csv", sep=",")
+cardio[,] <- apply(cardio[,], 2, function(x) as.numeric(as.character(x)))
+cardio <- na.omit(cardio)
+target <- cardio$TenYearCHD
+cardio <- select(cardio, -c("male","education", "currentSmoker", "BPMeds", "prevalentStroke", "prevalentHyp", "diabetes", "TenYearCHD"))
+
+summary(cardio)
+dim(cardio)
+```
+
+<div style="text-align: justify">
+Final dataset that will be used for PCA has 3800 observations and 8 variables.</br></br>
+Since PCA algorithm maximizes variance, it is important to do the normalization. Otherwise, the results would be biased because of natural value discrepancies of some variables (e.g totChol would be considered as more important than BMI, totChol is simply greater than BMI because of its nature).
+</div>
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+library(caret)
+```
+
+```{r}
+preproc1 <- preProcess(cardio, method=c("center", "scale"))
+cardio.s <- predict(preproc1, cardio)
+summary(cardio.s)
+```
+
+# **Principal component analysis (PCA)**
+<div style="text-align: justify">
+To dive deeper into the analysis before proceeding with PCA, I am using a pairwise correlation plot. The `ggpairs()` plot is useful for visualizing distribution and correlation between each variable.</br>
+It can be observed that almost every correlation is significant.
+</div>
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+library(GGally)
+ggpairs(cardio)
+```
+
+<div style="text-align: justify">
+Another way of visualizing pairwise correlation is `corrplot()`. As It can be noticed, some features (like systolic and diastilic blood pressure) are highly correlated with each other.
+</div>
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+library(corrplot)
+corr_df = cor(cardio, method='pearson')
+corrplot(corr_df)
+```
+
+<div style="text-align: justify">
+Finally, let's proceed with PCA.
+</div>
+
+```{r}
+pca<-prcomp(cardio.s, center=FALSE, scale.=FALSE)
+pca$rotation
+```
+
+<div style="text-align: justify">
+The loading matrix above shows loadings of a variable. The loadings can be interpreted as the importance of a variable in the composite variable. The higher the value, the higher the correlation between factor and variable, and the more important the variable in the given factor.</br>
+However, the meaning of components are hard to interpret. I will focus on the interpretation of the the meaning of certain components later on.
+</div>
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+library(factoextra)
+```
+
+```{r}
+summary(pca)
+```
+
+```{r, echo=FALSE}
+fviz_eig(pca)
+```
+
+<div style="text-align: justify">
+First components explain a small fraction of variance (1st PC - 30.06%, 2nd PC - 14.59%, 3rd PC - 12.77%).</br>
+First 5 PCs explain over 80% of variance.</br>
+Plot shows the proportion of variance of each component.
+</div>
+
+## **Analysis of components**
+<div style="text-align: justify">
+In order to analyze the components and try to grasp the meaning of them, one can use plots that are shown below.
+</div>
+
+```{r}
+fviz_pca_var(pca, col.var="steelblue")
+```
+
+<div style="text-align: justify">
+This plot is the visualization of loadings of the variable for the first two components (exact same values as for the loading matrix above). It shows the relationships between all variables.</br>
+It can be interpreted as follow: Positively correlated variables are grouped together. Negatively correlated variables are positioned on opposite sides of the plot origin (opposed quadrants).</br>
+The distance between variables and the origin measures the quality of the variables on the factor map. Variables that are away from the origin are well represented on the factor map.</br></br>
+
+Another way of visualizing the loading matrix is presented below. Let's take a look at the first 5 PCs.
+</div>
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+library(gridExtra)
+```
+
+```{r}
+var<-get_pca_var(pca)
+a<-fviz_contrib(pca, "var", axes=1)
+b<-fviz_contrib(pca, "var", axes=2)
+c<-fviz_contrib(pca, "var", axes=3)
+d<-fviz_contrib(pca, "var", axes=4)
+e<-fviz_contrib(pca, "var", axes=5)
+grid.arrange(a,b,c,d,e,top='Contribution to the first five Principal Components')
+```
+
+<div style="text-align: justify">
+In the first Principal Component above the threshold are *sysBP*, *diaBP* and *BMI*. Second - *cigsPerDay*, *heartRate*, *age*. Third - *glucose*, *heartRate*. Fourth - *totChol*, *glucose*, *cigsPerDay*. Fifth - *heartRate*, *cigsPerDay* and *glucose*.
+</div>
+
+<div style="text-align: justify">
+On the interactive 3D plot below, one can observe how the original variables behave relative to the first three principal components for each observation, and color by target variable.
+</div>
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+library(pca3d)
+```
+
+```{r, message=FALSE, warning=FALSE, results='hide'}
+pca3d(pca, group=as.factor(target), biplot=TRUE, biplot.vars=3, legend="topleft")
+```
+
+```{r}
+rglwidget()
+```
+
+<div style="text-align: justify">
+One can observe that positive (heart disease) target variables are slightly shifted in the same direction as diastolic and systolic blood preasure and BMI. It may suggest that these three variables result in higher chance of being ill.
+</div>
+
+### **Varimax rotation**
+
+<div style="text-align: justify">
+As I have mentioned before, the meaning of PCs are hard to interpret. In order to solve this issue one can use a varimax rotation. </br>
+A varimax rotation is used to simplify the expression of a particular sub-space in terms of just a few major items each. Varimax is so called because it maximizes the sum of the variances of the squared loadings (squared correlations between variables and factors).
+It simplifies the interpretation of factors by minimizing the number of variables necessary to explain a given factor.
+</div>
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+library(psych)
+```
+
+```{r}
+pca.varimax<-principal(cardio.s, nfactors=5, rotate="varimax")
+print(loadings(pca.varimax), digits=3, cutoff=0.4, sort=TRUE)
+```
+
+<div style="text-align: justify">
+Let's print only the significant loadings. Because I have no medical background, I can only guess why such features are grouped together. As if *sysBP*, *diaBP* and *BMI* creates RC1 I could make a guess that it may be linked with of obesity and cardiac output. I would interpret RC4 as getting old, RC2, RC5 and RC3 are self explanatory.
+</div>
+
+# **Conclusion**
+<div style="text-align: justify">
+In this paper, I have used PCA on the chosen medical dataset. PCA is a powerful dimensionality reduction tool that helps with reducing the complexity of a model. It compresses a dataset onto a lower-dimensional feature subspace with the goal of maintaining most of the relevant information.</br>
+As a result of the analysis, I have managed to reduce the number of variables from 8 to 5 with maintaining 80.1% of variance.
+</div>
